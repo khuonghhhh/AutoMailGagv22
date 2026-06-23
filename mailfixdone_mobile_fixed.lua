@@ -1,5 +1,5 @@
 -- ============================================================
--- AutoMail GAG2 — MERGED & FIXED by Mtr Chill
+-- AutoMail GAG2 — MERGED & FIXED by Moimoi!!
 -- Gộp: automail gear.lua + automail history.lua + automail config.lua
 -- Fix:
 --   [1] SEED_KEY_MAP: key game = display name y chang (xác nhận bằng dump)
@@ -23,7 +23,7 @@ local historyPath       = username .. "-sendmailgag2-history.json"
 local defaultConfig = {
     Recipient      = "nhap ten ngnhan",
     RecipientUserId = 0,
-    Note           = "Mtr Chill",
+    Note           = "Moimoi!!!",
     Seeds = {
         Acorn              = { enabled = false, amount = 1 },
         Apple              = { enabled = false, amount = 1 },
@@ -257,29 +257,30 @@ local function syncHistPos()
     end
 end
 
-local dragInput
+-- Drag: dùng Header làm handle để tránh scroll/button trong Main nuốt touch
+local function getPos2(inp)
+    -- Touch trả Vector3, Mouse trả Vector3 — lấy X,Y
+    return Vector2.new(inp.Position.X, inp.Position.Y)
+end
 
 Header.InputBegan:Connect(function(inp)
     if isBeginInput(inp) then
         dragging = true
-        dragStart = inp.Position
-        startPos = Main.Position
-        dragInput = inp
-
-        inp.Changed:Connect(function()
-            if inp.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
+        dragStart = getPos2(inp)
+        startPos  = Main.Position
     end
 end)
-
+Header.InputEnded:Connect(function(inp)
+    if isEndInput(inp) then dragging = false end
+end)
 UserInputService.InputChanged:Connect(function(inp)
-    if dragging and inp == dragInput then
-        local d = inp.Position - dragStart
+    if dragging and isMoveInput(inp) then
+        local p = getPos2(inp)
+        local dx = p.X - dragStart.X
+        local dy = p.Y - dragStart.Y
         Main.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + d.X,
-            startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            startPos.X.Scale, startPos.X.Offset + dx,
+            startPos.Y.Scale, startPos.Y.Offset + dy)
         syncHistPos()
     end
 end)
@@ -288,7 +289,7 @@ end)
 local Header = mkFrame(Main, UDim2.new(1,0,0,38), UDim2.new(0,0,0,0), C.header, 10)
 mkFrame(Header, UDim2.new(1,0,0,10), UDim2.new(0,0,1,-10), C.header)
 
-local titleLbl = mkLabel(Header, "📦 AutoMail By Mtr Chill", 14, C.accent, Enum.Font.GothamBold, Enum.TextXAlignment.Left)
+local titleLbl = mkLabel(Header, "📦 AutoMail By Moimoi!!", 14, C.accent, Enum.Font.GothamBold, Enum.TextXAlignment.Left)
 titleLbl.Position = UDim2.new(0, 12, 0, 0)
 titleLbl.Size = UDim2.new(1, -95, 1, 0)
 
@@ -529,17 +530,19 @@ end)
 local mtDragStart, mtStartPos, mtMoved
 MTBtn.InputBegan:Connect(function(inp)
     if isBeginInput(inp) then
-        mtDragStart = inp.Position; mtStartPos = MTBtn.Position; mtMoved = false
+        mtDragStart = getPos2(inp); mtStartPos = MTBtn.Position; mtMoved = false
     end
 end)
 UserInputService.InputChanged:Connect(function(inp)
     if mtDragStart and isMoveInput(inp) then
-        local d = inp.Position - mtDragStart
-        if math.abs(d.X) > 6 or math.abs(d.Y) > 6 then mtMoved = true end
+        local p = getPos2(inp)
+        local dx = p.X - mtDragStart.X
+        local dy = p.Y - mtDragStart.Y
+        if math.abs(dx) > 6 or math.abs(dy) > 6 then mtMoved = true end
         if mtMoved then
             MTBtn.Position = UDim2.new(
-                mtStartPos.X.Scale, mtStartPos.X.Offset + d.X,
-                mtStartPos.Y.Scale, mtStartPos.Y.Offset + d.Y)
+                mtStartPos.X.Scale, mtStartPos.X.Offset + dx,
+                mtStartPos.Y.Scale, mtStartPos.Y.Offset + dy)
         end
     end
 end)
@@ -1079,35 +1082,29 @@ local function sendGearItems(uid, total, skip)
                 item.name), "warn")
             skip += 1
         else
-            for count = 1, item.amount do
-                setStatus(string.format(
-                    "🎁 Gear [%d/%d] %s (%d/%d) | total: %d",
-                    i, #gearPayload, item.name, count, item.amount, total
-                ), Color3.fromRGB(120, 180, 255))
+            setStatus(string.format(
+                "🎁 Gear [%d/%d] %s x%d | total: %d",
+                i, #gearPayload, item.name, item.amount, total
+            ), Color3.fromRGB(120, 180, 255))
 
-                -- [FIX 3] Dùng Mailbox.SendBatch → kết quả thật từ server
-                local ok2, result, msg2 = pcall(function()
-                    return Networking.Mailbox.SendBatch:Fire(uid, {
-                        { Category = category, ItemKey = item.itemKey, Count = 1 }
-                    }, tostring(cfg.Note or ""))
-                end)
+            local ok2, result, msg2 = pcall(function()
+                return Networking.Mailbox.SendBatch:Fire(uid, {
+                    { Category = category, ItemKey = item.itemKey, Count = item.amount }
+                }, tostring(cfg.Note or ""))
+            end)
 
-                if ok2 and result == true then
-                    total += 1
-                    addLog(string.format("Gear %s — OK ✅", item.name), "ok")
-                    addHistoryEntry(cfg.Recipient, item.name, 1, true, category)
-                else
-                    skip += 1
-                    local errMsg = tostring(msg2 or result or "server reject")
-                    addLog(string.format("Gear %s — FAIL: %s", item.name, errMsg), "fail")
-                    addHistoryEntry(cfg.Recipient, item.name, 1, false, category)
-                end
-
-                if count < item.amount then task.wait(1.5) end
+            if ok2 and result == true then
+                total += 1
+                addLog(string.format("Gear %s x%d — OK ✅", item.name, item.amount), "ok")
+                addHistoryEntry(cfg.Recipient, item.name, item.amount, true, category)
+            else
+                skip += 1
+                local errMsg = tostring(msg2 or result or "server reject")
+                addLog(string.format("Gear %s x%d — FAIL: %s", item.name, item.amount, errMsg), "fail")
+                addHistoryEntry(cfg.Recipient, item.name, item.amount, false, category)
             end
-        end
-        if i < #gearPayload then task.wait(1.5) end
-    end
+        end  -- end if/else category
+    end  -- end for gearPayload
     return total, skip
 end
 
@@ -1142,19 +1139,16 @@ local function sendOneRound(uid, total, skip)
                 "Gear %s — SKIP: không biết section", item.name), "warn")
             skip += 1
         else
-            -- Mỗi đơn vị gear = 1 entry (Count = 1 * amount lần)
-            for _ = 1, item.amount do
-                table.insert(batchPayload, {
-                    Category = category,
-                    ItemKey  = item.itemKey,
-                    Count    = 1,
-                })
-                table.insert(batchMeta, {
-                    displayName = item.name,
-                    count       = 1,
-                    category    = category,
-                })
-            end
+            table.insert(batchPayload, {
+                Category = category,
+                ItemKey  = item.itemKey,
+                Count    = item.amount,
+            })
+            table.insert(batchMeta, {
+                displayName = item.name,
+                count       = item.amount,
+                category    = category,
+            })
         end
     end
 
